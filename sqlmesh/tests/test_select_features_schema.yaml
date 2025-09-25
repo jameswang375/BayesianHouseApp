@@ -1,0 +1,34 @@
+test_model:
+  model: sqlmesh.select_features
+  inputs:
+    sqlmesh.seed_model:
+      rows:
+      - PID: 1
+        "Overall Qual": 7
+        "Gr Liv Area": 1500
+        "1st Flr SF": 800
+        "Year Built": 2000
+        "Year Remod/Add": 2010
+        "Lot Area": 9000
+        "Overall Cond": 5
+        "Garage Area": 400
+        "Total Bsmt SF": 700
+        "Full Bath": 2
+        "SalePrice": 200000
+
+  outputs:
+    query:
+      rows:
+        - PID: 1
+          overall_qual: 7
+          gr_liv_area: 1500
+          first_flr_sf: 800
+          year_built: 2000
+          year_remod_add: 2010
+          lot_area: 9000
+          overall_cond: 5
+          garage_area: 400
+          total_bsmt_sf: 700
+          full_bath: 2
+          sale_price: 200000
+

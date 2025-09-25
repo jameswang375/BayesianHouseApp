@@ -1,0 +1,23 @@
+[project]
+name = "BayesianWebApp"
+version = "0.1.0"
+description = "A Bayesian regression app for housing price advice"
+readme = "README.md"
+requires-python = ">=3.9.6"
+
+dependencies = [
+   "pyro-ppl>=1.9.1",
+   "sqlmesh>=0.211.2",
+   "sqlmodel>=0.0.24",
+   "seaborn>=0.13.2",
+   "plotly>=6.3.0",
+  "marimo>=0.15.2"
+  
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
