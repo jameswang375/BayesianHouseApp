@@ -1,4 +1,4 @@
-# bayesian_house_app
+# Bayesian House App
 House-purchasing app based on machine learning prediction.
 
 Version 1
