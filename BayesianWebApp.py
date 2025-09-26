@@ -708,9 +708,9 @@ def _(mo):
               mo.vstack([mo.md("For the decision-making component of this app, the model uses the width of the credible intervals. Specifically, if the asking price is below the lower bound of the interval, the house is considered a bargain, since the lowest price predicted by the model (the lower bound) exceeds the asking price. Conversely, if the asking price is above the upper bound, the house is considered overpriced. If the asking price falls within the interval, the difference between the mean of the predicted sale prices and the asking price determines potential gain or loss: positive values indicate a potential gain, while negative values indicate a potential loss.")
                          ,mo.md("In future versions, potential improvements include adding more ways for users to interact with the data beyond the scatterplot and eliminating the shuttering that occurs each time an action is performed. Additionally, the app could be enhanced by integrating the CRUD functionality with the house decision logic so that any CRUD actions are immediately reflected in the decision-making output.")])                       
                                                ]),
-                          mo.vstack([mo.image(src="Predicted vs. True.png", width=650, height=500, rounded=True, caption="You can see that the model is pretty accurately predicting the true sale prices."),
-                          mo.image(src="Model Performance on Test Set.png", width=900, height=500, rounded=True, caption="Model Performance. Generalizes well on unseen data."),
-                           mo.image(src="Relative Widths.png", width=550, height=400, rounded=True, caption="Majority of relative widths are around 46% (so ±23%). Distribution is Gaussian.")         ], gap=2)
+                          mo.vstack([mo.image(src="images/Predicted_vs._True.png", width=650, height=500, rounded=True, caption="You can see that the model is pretty accurately predicting the true sale prices."),
+                          mo.image(src="images/Model_Performance_on_Test_Set.png", width=900, height=500, rounded=True, caption="Model Performance. Generalizes well on unseen data."),
+                           mo.image(src="images/Relative_Widths.png", width=550, height=400, rounded=True, caption="Majority of relative widths are around 46% (so ±23%). Distribution is Gaussian.")         ], gap=2)
                          ], gap=1)
     return (about_page,)
 
