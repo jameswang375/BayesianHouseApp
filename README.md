@@ -13,13 +13,14 @@ pip3 install .
 ## Running the App
 You can run the app with:
 ``` sh
-marimo run BayesianWebApp.py
+python3 -m marimo run BayesianWebApp.py
 ```
 
 You can also run the app as a marimo notebook with:
 ``` sh
-marimo edit BayesianWebApp.py
+python3 -m marimo edit BayesianWebApp.py
 ```
+
 **If marimo command not found, please check the PATH:**
 ``` sh
 pip3 show marimo
