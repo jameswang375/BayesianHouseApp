@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.15.2"
+__generated_with = "0.16.2"
 app = marimo.App(width="medium")
 
 
@@ -33,7 +33,6 @@ def _():
         duckdb,
         logging,
         mo,
-        np,
         os,
         pd,
         plt,
@@ -42,8 +41,6 @@ def _():
         select,
         torch,
     )
-
-
 
 
 @app.cell
@@ -61,7 +58,7 @@ def _(con):
 @app.cell
 def _(con):
     df_drop_lot_area = con.execute("SELECT * FROM sqlmesh.drop_lot_area").fetchdf()
-    return (df_drop_lot_area,)
+    return
 
 
 @app.cell
@@ -141,43 +138,7 @@ def _(df, torch):
 
     target_std = 0.4073182750630981 # standard deviation of sale_price_log
     target_mean = 12.020431074250771 # mean of sale_price_log. Cool to know. I basically used this to reverse the standardization
-    return (
-        first_flr_sf_std,
-        full_bath_0,
-        full_bath_1,
-        full_bath_2,
-        full_bath_3,
-        full_bath_4,
-        garage_area_std,
-        gr_liv_area_std,
-        lot_area_std,
-        overall_cond_1,
-        overall_cond_2,
-        overall_cond_3,
-        overall_cond_4,
-        overall_cond_5,
-        overall_cond_6,
-        overall_cond_7,
-        overall_cond_8,
-        overall_cond_9,
-        overall_qual_1,
-        overall_qual_10,
-        overall_qual_2,
-        overall_qual_3,
-        overall_qual_4,
-        overall_qual_5,
-        overall_qual_6,
-        overall_qual_7,
-        overall_qual_8,
-        overall_qual_9,
-        qual_livarea_interaction_std,
-        sale_price_log_std,
-        target_mean,
-        target_std,
-        total_bsmt_sf_std,
-        year_built_std,
-        year_remod_add_std,
-    )
+    return
 
 
 @app.cell
@@ -231,7 +192,7 @@ def _(dist, pyro):
 
         with pyro.plate("data", len(gr_liv_area_std)):
             return pyro.sample("obs", dist.Normal(mean, sigma), obs=sale_price_log_std)
-    return (model,)
+    return
 
 
 @app.cell
@@ -246,157 +207,92 @@ def _(logging, plt, pyro):
     # Set matplotlib settings
 
     plt.style.use('default')
-    return (smoke_test,)
-
-
-@app.cell
-def _(
-    first_flr_sf_std,
-    full_bath_0,
-    full_bath_1,
-    full_bath_2,
-    full_bath_3,
-    full_bath_4,
-    garage_area_std,
-    gr_liv_area_std,
-    lot_area_std,
-    mo,
-    model,
-    overall_cond_1,
-    overall_cond_2,
-    overall_cond_3,
-    overall_cond_4,
-    overall_cond_5,
-    overall_cond_6,
-    overall_cond_7,
-    overall_cond_8,
-    overall_cond_9,
-    overall_qual_1,
-    overall_qual_10,
-    overall_qual_2,
-    overall_qual_3,
-    overall_qual_4,
-    overall_qual_5,
-    overall_qual_6,
-    overall_qual_7,
-    overall_qual_8,
-    overall_qual_9,
-    plt,
-    pyro,
-    qual_livarea_interaction_std,
-    sale_price_log_std,
-    smoke_test,
-    total_bsmt_sf_std,
-    year_built_std,
-    year_remod_add_std,
-):
-    pyro.clear_param_store()
-
-
-    auto_guide = pyro.infer.autoguide.AutoNormal(model)
-    adam = pyro.optim.Adam({"lr": 0.0095})
-    elbo = pyro.infer.Trace_ELBO()
-    svi = pyro.infer.SVI(model, auto_guide, adam, elbo)
-
-    # Training Model
-    losses = []
-    for step in mo.status.progress_bar(range(2000 if not smoke_test else 2), title="Training Model First", subtitle="Please Wait...", show_eta=True, show_rate=True):
-        loss = svi.step(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std)
-        losses.append(loss)
-        if step % 100 == 0:
-            print(f"Step {step}: ELBO loss = {loss}")
-
-    # Plotting ELBO Loss
-    fig_svi, ax_svi = plt.subplots(figsize=(5, 2))
-    ax_svi.plot(losses)
-    ax_svi.set_xlabel("SVI step")
-    ax_svi.set_ylabel("ELBO loss")
-    plt.show()
-    mo.md("") # This is just to make the progress bar disappear once it is done. I don't know how else to make it disappear without rendering anything.
-    return (auto_guide,)
-
-
-@app.cell
-def _(
-    auto_guide,
-    first_flr_sf_std,
-    full_bath_0,
-    full_bath_1,
-    full_bath_2,
-    full_bath_3,
-    full_bath_4,
-    garage_area_std,
-    gr_liv_area_std,
-    lot_area_std,
-    model,
-    overall_cond_1,
-    overall_cond_2,
-    overall_cond_3,
-    overall_cond_4,
-    overall_cond_5,
-    overall_cond_6,
-    overall_cond_7,
-    overall_cond_8,
-    overall_cond_9,
-    overall_qual_1,
-    overall_qual_10,
-    overall_qual_2,
-    overall_qual_3,
-    overall_qual_4,
-    overall_qual_5,
-    overall_qual_6,
-    overall_qual_7,
-    overall_qual_8,
-    overall_qual_9,
-    pd,
-    pyro,
-    qual_livarea_interaction_std,
-    sale_price_log_std,
-    total_bsmt_sf_std,
-    year_built_std,
-    year_remod_add_std,
-):
-    predictive = pyro.infer.Predictive(model, guide=auto_guide, num_samples=800)
-    svi_samples = predictive(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std=None)
-    svi_sale_price_log = svi_samples["obs"]
-
-    y_mean = svi_sale_price_log.mean(0).detach().cpu().numpy()
-    y_perc_5 = svi_sale_price_log.kthvalue(int(0.05 * len(svi_sale_price_log)), dim=0)[0].detach().cpu().numpy()
-    y_perc_95 = svi_sale_price_log.kthvalue(int(0.95 * len(svi_sale_price_log)), dim=0)[0].detach().cpu().numpy()
-    sale_price_log_std_numpy = sale_price_log_std.detach().cpu().numpy()
-
-    predictions = pd.DataFrame({
-        "y_mean": y_mean,
-        "y_perc_5": y_perc_5,
-        "y_perc_95": y_perc_95,
-        "true_y": sale_price_log_std_numpy,
-    })
-    return (predictions,)
-
-
-@app.cell
-def _(df_drop_lot_area, np, predictions, target_mean, target_std):
-    #target_std_np = target_std.numpy() if isinstance(target_std, torch.Tensor) else target_std
-    #target_mean_np = target_mean.numpy() if isinstance(target_mean, torch.Tensor) else target_mean
-
-    # Un-standardize
-    predictions["true_y_orig"] = predictions["true_y"] * target_std + target_mean
-    predictions["y_mean_orig"] = predictions["y_mean"] * target_std + target_mean
-    predictions["y_perc_5_orig"] = predictions["y_perc_5"] * target_std + target_mean
-    predictions["y_perc_95_orig"] = predictions["y_perc_95"] * target_std + target_mean
-
-    # Undo log to get actual sale price
-    predictions["TrueSalePrice"] = np.exp(predictions["true_y_orig"])
-    predictions["PredictedSalePrice"] = np.exp(predictions["y_mean_orig"])
-    predictions["LowerBoundCI"] = np.exp(predictions["y_perc_5_orig"])
-    predictions["UpperBoundCI"] = np.exp(predictions["y_perc_95_orig"])
-
-    predictions['HouseID'] = np.arange(len(predictions))
-
-    predictions["GroundLivingArea"] = df_drop_lot_area['gr_liv_area']
-    predictions["BasementSquareFootage"] = df_drop_lot_area['total_bsmt_sf']
-    predictions["OverallQuality"] = df_drop_lot_area['overall_qual']
     return
+
+
+@app.cell
+def _():
+    # pyro.clear_param_store()
+
+
+    # auto_guide = pyro.infer.autoguide.AutoNormal(model)
+    # adam = pyro.optim.Adam({"lr": 0.0095})
+    # elbo = pyro.infer.Trace_ELBO()
+    # svi = pyro.infer.SVI(model, auto_guide, adam, elbo)
+
+    # # Training Model
+    # losses = []
+    # for step in mo.status.progress_bar(range(2000 if not smoke_test else 2), title="Training Model First", subtitle="Please Wait...", show_eta=True, show_rate=True):
+    #     loss = svi.step(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std)
+    #     losses.append(loss)
+    #     if step % 100 == 0:
+    #         print(f"Step {step}: ELBO loss = {loss}")
+
+    # # Plotting ELBO Loss
+    # fig_svi, ax_svi = plt.subplots(figsize=(5, 2))
+    # ax_svi.plot(losses)
+    # ax_svi.set_xlabel("SVI step")
+    # ax_svi.set_ylabel("ELBO loss")
+    # plt.show()
+    # mo.md("") # This is just to make the progress bar disappear once it is done. I don't know how else to make it disappear without rendering anything.
+    return
+
+
+@app.cell
+def _():
+    # predictive = pyro.infer.Predictive(model, guide=auto_guide, num_samples=800)
+    # svi_samples = predictive(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std=None)
+    # svi_sale_price_log = svi_samples["obs"]
+
+    # y_mean = svi_sale_price_log.mean(0).detach().cpu().numpy()
+    # y_perc_5 = svi_sale_price_log.kthvalue(int(0.05 * len(svi_sale_price_log)), dim=0)[0].detach().cpu().numpy()
+    # y_perc_95 = svi_sale_price_log.kthvalue(int(0.95 * len(svi_sale_price_log)), dim=0)[0].detach().cpu().numpy()
+    # sale_price_log_std_numpy = sale_price_log_std.detach().cpu().numpy()
+
+    # predictions = pd.DataFrame({
+    #     "y_mean": y_mean,
+    #     "y_perc_5": y_perc_5,
+    #     "y_perc_95": y_perc_95,
+    #     "true_y": sale_price_log_std_numpy,
+    # })
+    return
+
+
+@app.cell
+def _():
+    # #target_std_np = target_std.numpy() if isinstance(target_std, torch.Tensor) else target_std
+    # #target_mean_np = target_mean.numpy() if isinstance(target_mean, torch.Tensor) else target_mean
+
+    # # Un-standardize
+    # predictions["true_y_orig"] = predictions["true_y"] * target_std + target_mean
+    # predictions["y_mean_orig"] = predictions["y_mean"] * target_std + target_mean
+    # predictions["y_perc_5_orig"] = predictions["y_perc_5"] * target_std + target_mean
+    # predictions["y_perc_95_orig"] = predictions["y_perc_95"] * target_std + target_mean
+
+    # # Undo log to get actual sale price
+    # predictions["TrueSalePrice"] = np.exp(predictions["true_y_orig"])
+    # predictions["PredictedSalePrice"] = np.exp(predictions["y_mean_orig"])
+    # predictions["LowerBoundCI"] = np.exp(predictions["y_perc_5_orig"])
+    # predictions["UpperBoundCI"] = np.exp(predictions["y_perc_95_orig"])
+
+    # predictions['HouseID'] = np.arange(len(predictions))
+
+    # predictions["GroundLivingArea"] = df_drop_lot_area['gr_liv_area']
+    # predictions["BasementSquareFootage"] = df_drop_lot_area['total_bsmt_sf']
+    # predictions["OverallQuality"] = df_drop_lot_area['overall_qual']
+    return
+
+
+@app.cell
+def _():
+    #predictions.to_pickle('predictions.pkl')
+    return
+
+
+@app.cell
+def _(pd):
+    predictions = pd.read_pickle('predictions.pkl')
+    return (predictions,)
 
 
 @app.cell
