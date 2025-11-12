@@ -330,21 +330,35 @@ def _(mo, predictions, px):
 
 
 @app.cell
-def _(mo, np, posteriors, target_mean, target_std):
+def _():
+    decision_cache = {}
+    return (decision_cache,)
+
+
+@app.cell
+def _(decision_cache, mo, np, posteriors, target_mean, target_std):
     def decision(y_low, y_high, predicted_mean, asking_price, house_ID, tolerance=0.025, margin_threshold=4000): # This function is for a single house (i.e. one row of data)
-        coverage = round(np.random.uniform(0.7, 0.9), 2)
-        lower_q = (1 - coverage) / 2
-        upper_q = 1 - lower_q
-        posterior = posteriors[:, house_ID]
-        posterior = posterior * target_std + target_mean
-        posterior = np.exp(posterior)
-        y_low = np.quantile(posterior, lower_q)
-        y_high = np.quantile(posterior, upper_q)
+        key = (house_ID, asking_price)
+        if key in decision_cache:
+            # Use the cached interval & decision
+            y_low, y_high, coverage = decision_cache[key]
+    
+        else:
+            coverage = round(np.random.uniform(0.7, 0.9), 2)
+            lower_q = (1 - coverage) / 2
+            upper_q = 1 - lower_q
+            posterior = posteriors[:, house_ID]
+            posterior = posterior * target_std + target_mean
+            posterior = np.exp(posterior)
+            y_low = np.quantile(posterior, lower_q)
+            y_high = np.quantile(posterior, upper_q)
+    
     
         interval_width = y_high - y_low
         relative_width = ((interval_width / predicted_mean) * 100) // 2
-        expected_margin = predicted_mean - asking_price
+        expected_margin = predicted_mean - asking_price    
         buffer = 35000
+        decision_cache[key] = (y_low, y_high, coverage)
     
         # tolerance is % wiggle room you’re comfortable with
         if y_high < (asking_price * (1 - tolerance)) - buffer:
