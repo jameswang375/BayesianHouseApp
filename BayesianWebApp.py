@@ -33,6 +33,7 @@ def _():
         duckdb,
         logging,
         mo,
+        np,
         os,
         pd,
         plt,
@@ -138,7 +139,7 @@ def _(df, torch):
 
     target_std = 0.4073182750630981 # standard deviation of sale_price_log
     target_mean = 12.020431074250771 # mean of sale_price_log. Cool to know. I basically used this to reverse the standardization
-    return
+    return target_mean, target_std
 
 
 @app.cell
@@ -242,6 +243,7 @@ def _():
 def _():
     # predictive = pyro.infer.Predictive(model, guide=auto_guide, num_samples=800)
     # svi_samples = predictive(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std=None)
+
     # svi_sale_price_log = svi_samples["obs"]
 
     # y_mean = svi_sale_price_log.mean(0).detach().cpu().numpy()
@@ -276,7 +278,6 @@ def _():
     # predictions["UpperBoundCI"] = np.exp(predictions["y_perc_95_orig"])
 
     # predictions['HouseID'] = np.arange(len(predictions))
-
     # predictions["GroundLivingArea"] = df_drop_lot_area['gr_liv_area']
     # predictions["BasementSquareFootage"] = df_drop_lot_area['total_bsmt_sf']
     # predictions["OverallQuality"] = df_drop_lot_area['overall_qual']
@@ -285,14 +286,16 @@ def _():
 
 @app.cell
 def _():
-    #predictions.to_pickle('predictions.pkl')
+    # predictions.to_pickle('predictions.pkl')
+    # np.save("posterior_samples.npy", svi_sale_price_log)
     return
 
 
 @app.cell
-def _(pd):
+def _(np, pd):
     predictions = pd.read_pickle('predictions.pkl')
-    return (predictions,)
+    posteriors = np.load("posterior_samples.npy")
+    return posteriors, predictions
 
 
 @app.cell
@@ -327,24 +330,34 @@ def _(mo, predictions, px):
 
 
 @app.cell
-def _(mo):
-    def decision(y_low, y_high, predicted_mean, asking_price, tolerance=0.025, margin_threshold=2000): # This function is for a single house (i.e. one row of data)
+def _(mo, np, posteriors, target_mean, target_std):
+    def decision(y_low, y_high, predicted_mean, asking_price, house_ID, tolerance=0.025, margin_threshold=4000): # This function is for a single house (i.e. one row of data)
+        coverage = round(np.random.uniform(0.7, 0.9), 2)
+        lower_q = (1 - coverage) / 2
+        upper_q = 1 - lower_q
+        posterior = posteriors[:, house_ID]
+        posterior = posterior * target_std + target_mean
+        posterior = np.exp(posterior)
+        y_low = np.quantile(posterior, lower_q)
+        y_high = np.quantile(posterior, upper_q)
+    
         interval_width = y_high - y_low
         relative_width = ((interval_width / predicted_mean) * 100) // 2
         expected_margin = predicted_mean - asking_price
-
+        buffer = 35000
+    
         # tolerance is % wiggle room you’re comfortable with
-        if y_high < asking_price * (1 - tolerance):
+        if y_high < (asking_price * (1 - tolerance)) - buffer:
             return mo.callout(mo.md("<h3 style='text-align: left;'>🛑 Don't Buy (overpriced). The asking price is a lot higher than what this house would realistically sell for.</h3>"), kind="danger")
-        elif y_low > asking_price * (1 + tolerance):
+        elif y_low > (asking_price * (1 + tolerance)) + buffer:
             return mo.callout(mo.md("<h3 style='text-align: left;'>✅ Buy (undervalued). The asking price is below some of the lowest prices that this house would realistically sell for.</h3>"), kind="success")
         else:
             if expected_margin > margin_threshold:
-                return mo.callout(mo.md(f"<h3 style='text-align: left;'>✅ Buy. Expected gain if you buy: ${expected_margin}. I'm 90% confident that this is the case.</h3>"), kind="success")
+                return mo.callout(mo.md(f"<h3 style='text-align: left;'>✅ Buy. Expected gain if you buy: ${expected_margin}. I'm {coverage * 100}% confident that this is the case.</h3>"), kind="success")
             elif expected_margin < -margin_threshold:
-                return mo.callout(mo.md(f"<h3 style='text-align: left;'>🛑 Don't Buy. Expected loss if you buy: ${expected_margin}. I'm 90% confident that purchasing this house is not worth it.</h3>"), kind="danger")
+                return mo.callout(mo.md(f"<h3 style='text-align: left;'>🛑 Don't Buy. Expected loss if you buy: ${expected_margin}. I'm {coverage * 100}% confident that purchasing this house is not worth it.</h3>"), kind="danger")
             else:
-                return mo.callout(mo.md(f"<h3 style='text-align: left;'>🤔 The asking price falls within a reasonable range. Expected margin: ${expected_margin}. There is a 90% probability that this represents a fair purchase."), kind="warn")
+                return mo.callout(mo.md(f"<h3 style='text-align: left;'>🤔 The asking price falls within a reasonable range. Expected margin: ${expected_margin}. There is a {coverage * 100}% probability that this represents a fair purchase."), kind="warn")
     return (decision,)
 
 
@@ -353,10 +366,11 @@ def _(asking_price, decision, mo, reactive_chart, set_decision_state):
     lower_bound_plot = reactive_chart.value[0]['LowerBoundCI'] if reactive_chart.value else None
     upper_bound_plot = reactive_chart.value[0]['UpperBoundCI'] if reactive_chart.value else None
     predicted_sale_price_plot = reactive_chart.value[0]['PredictedSalePrice'] if reactive_chart.value else None
+    House_ID = reactive_chart.value[0]['HouseID'] if reactive_chart.value else None
 
     def calling_decision(*_):
-        if lower_bound_plot and upper_bound_plot and predicted_sale_price_plot and asking_price.value:
-            set_decision_state(decision(lower_bound_plot, upper_bound_plot, predicted_sale_price_plot, asking_price.value))
+        if lower_bound_plot and upper_bound_plot and predicted_sale_price_plot and asking_price.value and House_ID:
+            set_decision_state(decision(lower_bound_plot, upper_bound_plot, predicted_sale_price_plot, asking_price.value, House_ID))
         else:
             set_decision_state(mo.callout(mo.md("""<h3 style='text-align: left;'>⚠️ One or more missing inputs!</h3>"""), kind='warn'))
     return (calling_decision,)
