@@ -1,7 +1,11 @@
 import marimo
 
 __generated_with = "0.16.2"
-app = marimo.App(width="medium")
+app = marimo.App(
+    width="medium",
+    app_title="Bayesian App for Real Estate",
+    css_file="",
+)
 
 
 @app.cell
@@ -20,7 +24,6 @@ def _():
     import numpy as np
     import random
     import plotly.express as px
-    import plotly.graph_objects as go
     from sqlmodel import Field, Session, SQLModel, create_engine, select, func
     from typing import Optional
     return (
@@ -300,7 +303,7 @@ def _(np, pd):
 
 @app.cell
 def _(mo, predictions, px):
-    scatter_fig = px.scatter(predictions,  x='HouseID', y='PredictedSalePrice', title="House Data", subtitle = "Click on a Data Point for More Information about a House", hover_data=['LowerBoundCI', 'UpperBoundCI', 'GroundLivingArea', 'BasementSquareFootage', 'OverallQuality'])
+    scatter_fig = px.scatter(predictions,  x='HouseID', y='PredictedSalePrice', title="House Data", subtitle = "Hover Over a Data Point for More Information", hover_data=['LowerBoundCI', 'UpperBoundCI', 'GroundLivingArea', 'BasementSquareFootage', 'OverallQuality'])
 
 
     scatter_fig.update_layout(clickmode="event+select")
@@ -312,10 +315,17 @@ def _(mo, predictions, px):
 
     scatter_fig.update_layout(dragmode="pan")
 
+
     scatter_fig.update_traces(
-        selected=dict(marker=dict(color="red", size=12)),
+        # all points start dimmed
+        marker=dict(color='blue', size=6.5, opacity=0.7),
+        # when a point is selected, make it red + larger + fully opaque
+        selected=dict(marker=dict(color='red', size=12, opacity=1.0)),
+        # unselected points stay dim after selection
         unselected=dict(marker=dict(opacity=0.2))
-    ) # Turns red when you select a point
+    )
+
+
 
     scatter_fig.update_layout(
         xaxis=dict(range=[-100, 3100], fixedrange=True),   # don’t let user zoom out further than this
@@ -342,9 +352,9 @@ def _(decision_cache, mo, np, posteriors, target_mean, target_std):
         if key in decision_cache:
             # Use the cached interval & decision
             y_low, y_high, coverage = decision_cache[key]
-    
+
         else:
-            coverage = round(np.random.uniform(0.7, 0.9), 2)
+            coverage = round(np.random.uniform(0.85, 0.95), 2)
             lower_q = (1 - coverage) / 2
             upper_q = 1 - lower_q
             posterior = posteriors[:, house_ID]
@@ -352,14 +362,14 @@ def _(decision_cache, mo, np, posteriors, target_mean, target_std):
             posterior = np.exp(posterior)
             y_low = np.quantile(posterior, lower_q)
             y_high = np.quantile(posterior, upper_q)
-    
-    
+
+
         interval_width = y_high - y_low
         relative_width = ((interval_width / predicted_mean) * 100) // 2
         expected_margin = predicted_mean - asking_price    
         buffer = 35000
         decision_cache[key] = (y_low, y_high, coverage)
-    
+
         # tolerance is % wiggle room you’re comfortable with
         if y_high < (asking_price * (1 - tolerance)) - buffer:
             return mo.callout(mo.md("<h3 style='text-align: left;'>🛑 Don't Buy (overpriced). The asking price is a lot higher than what this house would realistically sell for.</h3>"), kind="danger")
@@ -613,10 +623,12 @@ def _(add_button, card, crud_table, delete_button, mo, update_button):
 def _(asking_price, decision_button, get_decision_state, mo, reactive_chart):
     def home_page():
         return mo.vstack(
-            [mo.vstack([mo.md("""<h1 style='margin-bottom: 30px; text-align: left; color: green;'>Main Page</h1>"""), reactive_chart, mo.ui.table(reactive_chart.value, show_download=False)], gap=0.001),  
-                          mo.vstack([asking_price, decision_button], gap=2), 
-                          get_decision_state()
-                         ], 
+            [mo.vstack([mo.md("""<h1 style='margin-bottom: 30px; text-align: left; color: green;'>Main Page</h1>"""), reactive_chart,
+                       mo.callout(mo.md(f"<h3 style='text-align: left;'>House ID {reactive_chart.value[0]['HouseID']} Selected</h3>") if reactive_chart.value else mo.md(f"<h3 style='text-align: left;'>Please Select a House</h3>")
+                                 )], 
+         gap=0.0001),  
+            mo.vstack([asking_price, decision_button, get_decision_state()], gap=2.5), 
+                        ], 
             gap=1.5)
     return (home_page,)
 
@@ -643,10 +655,10 @@ def _(mo):
 def _(about_page, crud_page, home_page, mo):
     mo.routes(
         {
-            "#/": home_page,
-            "#/CRUD": crud_page,
-            "#/about": about_page,
-            mo.routes.CATCH_ALL: home_page,
+            "#/": mo.Html(f"{home_page()}"),
+            "#/CRUD": mo.Html(f"{crud_page()}"),
+            "#/about": mo.Html(f"{about_page()}"),
+            mo.routes.CATCH_ALL: mo.Html(f"{home_page()}")
         }
     )
     return
