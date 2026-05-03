@@ -366,7 +366,7 @@ def _(decision_cache, mo, np, posteriors, target_mean, target_std):
 
         interval_width = y_high - y_low
         relative_width = ((interval_width / predicted_mean) * 100) // 2
-        expected_margin = predicted_mean - asking_price    
+        expected_margin = round(predicted_mean - asking_price, 2)    
         buffer = 35000
         decision_cache[key] = (y_low, y_high, coverage)
 
