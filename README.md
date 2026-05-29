@@ -1,3 +1,12 @@
+---
+title: Bayesian House App
+emoji: 🏠
+colorFrom: green
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
 
 # Bayesian House App
 Interactive and reactive house-purchasing app based on machine learning prediction.
