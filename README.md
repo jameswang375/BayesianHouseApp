@@ -1,3 +1,4 @@
+
 # Bayesian House App
 Interactive and reactive house-purchasing app based on machine learning prediction.
 
@@ -53,6 +54,3 @@ In future versions, potential improvements include adding more ways for users to
 
 **Majority of relative widths are around 46% (so ±23%). Distribution is Gaussian.**
 
-![alt text](images/App-User-Interface.png "User Interface")
-
-**Main Page of Application. Simple, but works.**

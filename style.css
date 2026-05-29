@@ -1,0 +1,167 @@
+/* ── Real Estate Brand Theme ─────────────────────────────────────────── */
+
+/* ── Core theme variables ─────────────────────────────────────────────── */
+/*
+  !important on custom properties locks them against being overridden by
+  any non-!important rule — including Marimo's @supports light-dark() block
+  or any dynamic style injection after hydration.
+*/
+.marimo, :root {
+  --background:               #F7F3EE !important;
+  --foreground:               #1A1A1A !important;
+
+  --card:                     #FDFAF6 !important;
+  --card-foreground:          #1A1A1A !important;
+
+  --muted:                    #EDE6DA !important;
+  --muted-foreground:         #6B6356 !important;
+
+  --popover:                  #FDFAF6 !important;
+  --popover-foreground:       #1A1A1A !important;
+
+  --border:                   #D6CCBB !important;
+  --input:                    #C4B8A8 !important;
+
+  --primary:                  #2E7D52 !important;
+  --primary-foreground:       #FFFFFF !important;
+
+  --secondary:                #EDE6DA !important;
+  --secondary-foreground:     #1A1A1A !important;
+
+  --accent:                   #E8F4EE !important;
+  --accent-foreground:        #2E7D52 !important;
+
+  --action:                   #2E7D52 !important;
+  --action-hover:             #3A9966 !important;
+  --action-foreground:        #FFFFFF !important;
+
+  --admonition-bg:            #E8F4EE !important;
+  --admonition-border:        #2E7D52 !important;
+  --admonition-heading-color: #1B5C3A !important;
+
+  --link:                     #2E7D52 !important;
+  --link-visited:             #1B5C3A !important;
+
+  --scrollbar-thumb:          #B08D57 !important;
+  --scrollbar-track:          #EDE6DA !important;
+
+  --success:                  #2E7D52 !important;
+  --success-foreground:       #FFFFFF !important;
+}
+
+/*
+  Marimo's ThemeProvider runs document.body.classList.add("light","light-theme")
+  on hydration. Those classes set --background on body directly, which wins over
+  :root via CSS inheritance. We override them here explicitly.
+*/
+body,
+body.light,
+body.light-theme,
+html {
+  --background:    #F7F3EE !important;
+  --foreground:    #1A1A1A !important;
+  --card:          #FDFAF6 !important;
+  --muted:         #EDE6DA !important;
+  --border:        #D6CCBB !important;
+  --primary:       #2E7D52 !important;
+  --action:        #2E7D52 !important;
+  --action-hover:  #3A9966 !important;
+  --action-foreground: #FFFFFF !important;
+  background-color: #F7F3EE !important;
+  color: #1A1A1A !important;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+[data-testid="sidebar"],
+[data-sidebar],
+aside,
+.sidebar,
+div[class*="sidebar"] {
+  background-color: #3C2A1E !important;
+  border-right-color: #B08D57 !important;
+}
+
+[data-testid="sidebar"] *,
+[data-sidebar] *,
+aside *,
+.sidebar *,
+div[class*="sidebar"] * {
+  color: #F0EBE0 !important;
+}
+
+[data-testid="sidebar"] h1,
+aside h1,
+div[class*="sidebar"] h1 {
+  color: #F7F3EE !important;
+  font-size: 1.1rem !important;
+  border-bottom: 1px solid #B08D57;
+  padding-bottom: 0.5rem;
+}
+
+/* Nav link colors — gold instead of plain white */
+[data-testid="sidebar"] a,
+aside a,
+div[class*="sidebar"] a,
+.app-sidebar a {
+  color: #B08D57 !important;
+  font-weight: 500;
+}
+
+[data-testid="sidebar"] a:hover,
+aside a:hover,
+div[class*="sidebar"] a:hover,
+.app-sidebar a:hover {
+  color: #F0EBE0 !important;
+  text-decoration: none;
+}
+
+/* ── Hide right-side bars ─────────────────────────────────────────────── */
+/* "..." run-mode menu button (fixed, top-right) */
+div.no-print.flex.gap-2 {
+  display: none !important;
+}
+
+/* Floating section-navigator (table of contents, right side, z-10000) */
+[class*="z-10000"] {
+  display: none !important;
+}
+
+/* ── Plotly chart ─────────────────────────────────────────────────────── */
+.js-plotly-plot {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(30, 42, 36, 0.08);
+}
+
+/* ── Table ────────────────────────────────────────────────────────────── */
+th {
+  background-color: #1E2A24 !important;
+  color: #F7F3EE !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  padding: 10px 14px !important;
+}
+
+td {
+  border-bottom-color: #EDE6DA !important;
+}
+
+tr:hover td {
+  background-color: #E8F4EE !important;
+}
+
+/* ── Images ───────────────────────────────────────────────────────────── */
+img {
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(30, 42, 36, 0.1);
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: #EDE6DA; }
+::-webkit-scrollbar-thumb { background: #B08D57; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #1E2A24; }
+
+/* ── Text selection ───────────────────────────────────────────────────── */
+::selection { background: rgba(46, 125, 82, 0.2); }

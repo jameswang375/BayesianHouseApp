@@ -4,7 +4,8 @@ __generated_with = "0.16.2"
 app = marimo.App(
     width="medium",
     app_title="Bayesian App for Real Estate",
-    css_file="",
+    css_file="style.css",
+    html_head_file="head.html",
 )
 
 
@@ -14,17 +15,9 @@ def _():
     import duckdb
     import pandas as pd
     import os
-    import pyro
-    import torch
-    import seaborn as sns
-    import pyro.distributions as dist
-    import pyro.distributions.constraints as constraints
-    import logging
-    import matplotlib.pyplot as plt 
     import numpy as np
-    import random
     import plotly.express as px
-    from sqlmodel import Field, Session, SQLModel, create_engine, select, func
+    from sqlmodel import Field, Session, SQLModel, create_engine, select
     from typing import Optional
     return (
         Field,
@@ -32,18 +25,13 @@ def _():
         SQLModel,
         Session,
         create_engine,
-        dist,
         duckdb,
-        logging,
         mo,
         np,
         os,
         pd,
-        plt,
         px,
-        pyro,
         select,
-        torch,
     )
 
 
@@ -51,18 +39,6 @@ def _():
 def _(duckdb):
     con = duckdb.connect("sqlmesh/houses.db")
     return (con,)
-
-
-@app.cell
-def _(con):
-    df = con.execute("SELECT * FROM sqlmesh.standardized_model").fetchdf()
-    return (df,)
-
-
-@app.cell
-def _(con):
-    df_drop_lot_area = con.execute("SELECT * FROM sqlmesh.drop_lot_area").fetchdf()
-    return
 
 
 @app.cell
@@ -80,6 +56,7 @@ def _(con):
 @app.cell
 def _(Field, Optional, SQLModel):
     class Housing(SQLModel, table=True):
+        __table_args__ = {"extend_existing": True}
         pid: Optional[int] = Field(default=None, alias="PID", primary_key=True)
         overall_qual: Optional[int] = Field(alias="Overall Qual", default=0)
         gr_liv_area: Optional[int] = Field(alias="Gr Liv Area", default=0)
@@ -97,6 +74,7 @@ def _(Field, Optional, SQLModel):
 
 @app.cell
 def _(Housing, SQLModel, Session, create_engine, df_sqlmodel, os):
+    os.makedirs("sqlmodel", exist_ok=True)
     if not os.path.exists("sqlmodel/houses_crud.db"):
         sqlite_file_name = "sqlmodel/houses_crud.db"
         sqlite_url = f"sqlite:///{sqlite_file_name}"
@@ -136,162 +114,10 @@ def _(Housing, SQLModel, Session, create_engine, df_sqlmodel, os):
 
 
 @app.cell
-def _(df, torch):
-    train = torch.tensor(df.values, dtype=torch.float)
-    gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std = train[:, 1], train[:, 2], train[:, 3], train[:, 4], train[:, 5], train[:, 6], train[:, 7], train[:, 8], train[:, 9], train[:, 10], train[:, 11], train[:, 12], train[:, 13], train[:, 14], train[:, 15], train[:, 16], train[:, 17], train[:, 18], train[:, 19], train[:, 20], train[:, 21], train[:, 22], train[:, 23], train[:, 24], train[:, 25], train[:, 26], train[:, 27], train[:, 28], train[:, 29], train[:, 30], train[:, 31], train[:, 32], train[:, 33]
-
-    target_std = 0.4073182750630981 # standard deviation of sale_price_log
-    target_mean = 12.020431074250771 # mean of sale_price_log. Cool to know. I basically used this to reverse the standardization
+def _():
+    target_std = 0.4073182750630981
+    target_mean = 12.020431074250771
     return target_mean, target_std
-
-
-@app.cell
-def _(dist, pyro):
-    def model(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std=None):
-        alpha = pyro.sample("alpha", dist.Normal(0, 5))
-        b1 = pyro.sample("b1", dist.Normal(0, 1))
-        b2 = pyro.sample("b2", dist.Normal(0, 1))
-        b3 = pyro.sample("b3", dist.Normal(0, 1))
-        b4 = pyro.sample("b4", dist.Normal(0, 1))
-        b5 = pyro.sample("b5", dist.Normal(0, 1))
-        b6 = pyro.sample("b6", dist.Normal(0, 1))
-
-        ### Overall Quality features
-        b7 = pyro.sample("b7", dist.Normal(0, 0.5))
-        b8 = pyro.sample("b8", dist.Normal(0, 0.5))
-        b9 = pyro.sample("b9", dist.Normal(0, 0.5))
-        b10 = pyro.sample("b10", dist.Normal(0, 0.5))
-        b11 = pyro.sample("b11", dist.Normal(0, 0.5))
-        b12 = pyro.sample("b12", dist.Normal(0, 0.5))
-        b13 = pyro.sample("b13", dist.Normal(0, 0.5))
-        b14 = pyro.sample("b14", dist.Normal(0, 0.5))
-        b15 = pyro.sample("b15", dist.Normal(0, 0.5))
-        b16 = pyro.sample("b16", dist.Normal(0, 0.5))
-
-
-        b17 = pyro.sample("b17", dist.Normal(0, 1))
-        b18 = pyro.sample("b18", dist.Normal(0, 1))
-
-        ### Overall Condition features
-        b19 = pyro.sample("b19", dist.Normal(0, 0.5))
-        b20 = pyro.sample("b20", dist.Normal(0, 0.5))
-        b21 = pyro.sample("b21", dist.Normal(0, 0.5))
-        b22 = pyro.sample("b22", dist.Normal(0, 0.5))
-        b23 = pyro.sample("b23", dist.Normal(0, 0.5))
-        b24 = pyro.sample("b24", dist.Normal(0, 0.5))
-        b25 = pyro.sample("b25", dist.Normal(0, 0.5))
-        b26 = pyro.sample("b26", dist.Normal(0, 0.5))
-        b27 = pyro.sample("b27", dist.Normal(0, 0.5))
-
-        ### Full Bath Features
-        b28 = pyro.sample("b28", dist.Normal(0, 0.5))
-        b29 = pyro.sample("b29", dist.Normal(0, 0.5))
-        b30 = pyro.sample("b30", dist.Normal(0, 0.5))
-        b31 = pyro.sample("b31", dist.Normal(0, 0.5))
-        b32 = pyro.sample("b32", dist.Normal(0, 0.5))
-
-        sigma = pyro.sample("sigma", dist.HalfNormal(1))
-
-        mean = alpha + b1 * gr_liv_area_std + b2 * first_flr_sf_std + b3 * lot_area_std + b4 * garage_area_std + b5 * total_bsmt_sf_std + b6 * qual_livarea_interaction_std + b7 * overall_qual_1 + b8 * overall_qual_2 + b9 * overall_qual_3 + b10 * overall_qual_4 + b11 * overall_qual_5 + b12 * overall_qual_6 + b13 * overall_qual_7 + b14 * overall_qual_8 + b15 * overall_qual_9 + b16 * overall_qual_10 + b17 * year_built_std + b18 * year_remod_add_std + b19 * overall_cond_1 + b20 * overall_cond_2 + b21 * overall_cond_3 + b22 * overall_cond_4 + b23 * overall_cond_5 + b24 * overall_cond_6 + b25 * overall_cond_7 + b26 * overall_cond_8 + b27 * overall_cond_9 + b28 * full_bath_0 + b29 * full_bath_1 + b30 * full_bath_2 + b31 * full_bath_3 + b32 * full_bath_4
-
-        with pyro.plate("data", len(gr_liv_area_std)):
-            return pyro.sample("obs", dist.Normal(mean, sigma), obs=sale_price_log_std)
-    return
-
-
-@app.cell
-def _(logging, plt, pyro):
-    smoke_test = False # Set to True if you want to test/debug the SVI training phase
-    assert pyro.__version__.startswith('1.9.1')
-
-    pyro.enable_validation(True)
-    pyro.set_rng_seed(1)
-    logging.basicConfig(format='%(message)s', level=logging.INFO)
-
-    # Set matplotlib settings
-
-    plt.style.use('default')
-    return
-
-
-@app.cell
-def _():
-    # pyro.clear_param_store()
-
-
-    # auto_guide = pyro.infer.autoguide.AutoNormal(model)
-    # adam = pyro.optim.Adam({"lr": 0.0095})
-    # elbo = pyro.infer.Trace_ELBO()
-    # svi = pyro.infer.SVI(model, auto_guide, adam, elbo)
-
-    # # Training Model
-    # losses = []
-    # for step in mo.status.progress_bar(range(2000 if not smoke_test else 2), title="Training Model First", subtitle="Please Wait...", show_eta=True, show_rate=True):
-    #     loss = svi.step(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std)
-    #     losses.append(loss)
-    #     if step % 100 == 0:
-    #         print(f"Step {step}: ELBO loss = {loss}")
-
-    # # Plotting ELBO Loss
-    # fig_svi, ax_svi = plt.subplots(figsize=(5, 2))
-    # ax_svi.plot(losses)
-    # ax_svi.set_xlabel("SVI step")
-    # ax_svi.set_ylabel("ELBO loss")
-    # plt.show()
-    # mo.md("") # This is just to make the progress bar disappear once it is done. I don't know how else to make it disappear without rendering anything.
-    return
-
-
-@app.cell
-def _():
-    # predictive = pyro.infer.Predictive(model, guide=auto_guide, num_samples=800)
-    # svi_samples = predictive(gr_liv_area_std, first_flr_sf_std, lot_area_std, garage_area_std, total_bsmt_sf_std, qual_livarea_interaction_std, overall_qual_1, overall_qual_2, overall_qual_3, overall_qual_4, overall_qual_5, overall_qual_6, overall_qual_7, overall_qual_8, overall_qual_9, overall_qual_10, year_built_std, year_remod_add_std, overall_cond_1, overall_cond_2, overall_cond_3, overall_cond_4, overall_cond_5, overall_cond_6, overall_cond_7, overall_cond_8, overall_cond_9, full_bath_0, full_bath_1, full_bath_2, full_bath_3, full_bath_4, sale_price_log_std=None)
-
-    # svi_sale_price_log = svi_samples["obs"]
-
-    # y_mean = svi_sale_price_log.mean(0).detach().cpu().numpy()
-    # y_perc_5 = svi_sale_price_log.kthvalue(int(0.05 * len(svi_sale_price_log)), dim=0)[0].detach().cpu().numpy()
-    # y_perc_95 = svi_sale_price_log.kthvalue(int(0.95 * len(svi_sale_price_log)), dim=0)[0].detach().cpu().numpy()
-    # sale_price_log_std_numpy = sale_price_log_std.detach().cpu().numpy()
-
-    # predictions = pd.DataFrame({
-    #     "y_mean": y_mean,
-    #     "y_perc_5": y_perc_5,
-    #     "y_perc_95": y_perc_95,
-    #     "true_y": sale_price_log_std_numpy,
-    # })
-    return
-
-
-@app.cell
-def _():
-    # #target_std_np = target_std.numpy() if isinstance(target_std, torch.Tensor) else target_std
-    # #target_mean_np = target_mean.numpy() if isinstance(target_mean, torch.Tensor) else target_mean
-
-    # # Un-standardize
-    # predictions["true_y_orig"] = predictions["true_y"] * target_std + target_mean
-    # predictions["y_mean_orig"] = predictions["y_mean"] * target_std + target_mean
-    # predictions["y_perc_5_orig"] = predictions["y_perc_5"] * target_std + target_mean
-    # predictions["y_perc_95_orig"] = predictions["y_perc_95"] * target_std + target_mean
-
-    # # Undo log to get actual sale price
-    # predictions["TrueSalePrice"] = np.exp(predictions["true_y_orig"])
-    # predictions["PredictedSalePrice"] = np.exp(predictions["y_mean_orig"])
-    # predictions["LowerBoundCI"] = np.exp(predictions["y_perc_5_orig"])
-    # predictions["UpperBoundCI"] = np.exp(predictions["y_perc_95_orig"])
-
-    # predictions['HouseID'] = np.arange(len(predictions))
-    # predictions["GroundLivingArea"] = df_drop_lot_area['gr_liv_area']
-    # predictions["BasementSquareFootage"] = df_drop_lot_area['total_bsmt_sf']
-    # predictions["OverallQuality"] = df_drop_lot_area['overall_qual']
-    return
-
-
-@app.cell
-def _():
-    # predictions.to_pickle('predictions.pkl')
-    # np.save("posterior_samples.npy", svi_sale_price_log)
-    return
 
 
 @app.cell
@@ -679,25 +505,6 @@ def _(mo):
     ])
     return
 
-
-@app.cell
-def _():
-    ### Notes:
-
-    # How to intepret credible intervals: based on the percentage of the credible interval (say 90% credible interval) and its width, the correct interpretation is that the model is 90% certain that the true target variable is within the interval width. Narrower widths tell you that the model is more certain that the true target variable is within a smaller range of values, and how certain depends on the percentage of the credible interval (or how much probability mass the interval covers).
-
-    ### Most of the intervals from this model are around 44 percent uncertainty for the total lower and upper bounds. 
-    # So the model is giving around 22% uncertainty on either side of the mean prediction.
-    ### So that means:
-    # For a typical prediction, the model is 90% certain (because 90 percent credible interval) that the true value lies within ±22% of the predicted price. 
-    # In other words, the model is 90 percent confident that the true sale price is within ±22% of its prediction.
-
-    # For the decision part of this app, the app uses the width of the credible intervals. More specifically, if the asking price is below the lower bound of the interval, it is a bargain according to the model because the cheapest price the model predicts (i.e., the lower bound) is greater than the asking price. This applies vice-versa as well. If the asking price is within the model's interval, the difference between the predicted mean and the asking price will determine gain or loss. Positive results would indicate gain, whereas negative results would indicate loss.
-
-    # Try to include all the plots made during model development to showcase model performance etc., kind of like an appendix. For example, showing the plot of how the model performs on the test set.
-
-    # For future commits, improvements include making more ways users can interact with the data besides a scatterplot and eliminating the shuttering in the app everytime an action is performed. Additionally, the app can be improved by connecting the CRUD functionality to the house decision making so that any CRUD actions will be reflected.
-    return
 
 
 if __name__ == "__main__":
