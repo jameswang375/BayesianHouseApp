@@ -208,3 +208,6 @@ __marimo__/
 
 # Runtime-generated SQLite DB
 sqlmodel/houses_crud.db
+
+# Claude Code local config
+.claude/
