@@ -16,7 +16,6 @@ def _():
     import pandas as pd
     import os
     import numpy as np
-    import plotly.express as px
     from sqlmodel import Field, Session, SQLModel, create_engine, select
     from typing import Optional
     return (
@@ -30,7 +29,6 @@ def _():
         np,
         os,
         pd,
-        px,
         select,
     )
 
@@ -121,115 +119,121 @@ def _():
 
 
 @app.cell
-def _(np, pd):
-    predictions = pd.read_pickle('predictions.pkl')
-    posteriors = np.load("posterior_samples.npy")
-    return posteriors, predictions
+def _(np):
+    _FEATURE_COLS = ['overall_qual', 'gr_liv_area', 'first_flr_sf', 'year_built',
+                     'year_remod_add', 'lot_area', 'overall_cond', 'garage_area',
+                     'total_bsmt_sf', 'full_bath']
+    _SKIP_ROWS = [956, 1497, 1569, 2070, 2114, 2179, 2180]
+
+    _posteriors = np.load("posterior_samples.npy")  # (800, 2921)
+
+    import duckdb as _duckdb
+    _con = _duckdb.connect("sqlmesh/houses.db")
+    _df = _con.execute("SELECT * FROM sqlmesh.select_features").fetchdf()
+    _con.close()
+
+    _df_train = _df.dropna(subset=['garage_area', 'total_bsmt_sf']).reset_index(drop=True)
+    _df_train = _df_train.drop(index=_SKIP_ROWS).reset_index(drop=True)
+
+    _X = _df_train[_FEATURE_COLS].values.astype(float)
+    feat_means = _X.mean(axis=0)
+    feat_stds = _X.std(axis=0)
+    _X_std = (_X - feat_means) / feat_stds
+
+    posterior_weights, _, _, _ = np.linalg.lstsq(_X_std, _posteriors.T, rcond=None)
+    _residuals = _posteriors.T - _X_std @ posterior_weights
+    noise_std = float(_residuals.std())
+    return feat_means, feat_stds, posterior_weights, noise_std
 
 
 @app.cell
-def _(mo, predictions, px):
-    scatter_fig = px.scatter(predictions,  x='HouseID', y='PredictedSalePrice', title="House Data", subtitle = "Hover Over a Data Point for More Information", hover_data=['LowerBoundCI', 'UpperBoundCI', 'GroundLivingArea', 'BasementSquareFootage', 'OverallQuality'])
+def _(feat_means, feat_stds, mo, noise_std, np, posterior_weights, target_mean, target_std):
+    def predict_posterior(feature_values):
+        x = np.array(feature_values, dtype=float)
+        x_std = (x - feat_means) / feat_stds
+        samples = x_std @ posterior_weights + np.random.normal(0, noise_std, 800)
+        return np.exp(samples * target_std + target_mean)
 
+    def decision(feature_values, asking_price):
+        posterior = predict_posterior(feature_values)
+        predicted_mean = float(posterior.mean())
+        expected_margin = round(predicted_mean - asking_price, 2)
+        p_worth_more = float((posterior > asking_price).mean())
+        pct = round(p_worth_more * 100, 1)
 
-    scatter_fig.update_layout(clickmode="event+select")
-
-    scatter_fig.update_layout(
-        xaxis_title="House ID",   # user sees this
-        yaxis_title="Mean Predicted Sale Price"
-    )
-
-    scatter_fig.update_layout(dragmode="pan")
-
-
-    scatter_fig.update_traces(
-        # all points start dimmed
-        marker=dict(color='blue', size=6.5, opacity=0.7),
-        # when a point is selected, make it red + larger + fully opaque
-        selected=dict(marker=dict(color='red', size=12, opacity=1.0)),
-        # unselected points stay dim after selection
-        unselected=dict(marker=dict(opacity=0.2))
-    )
-
-
-
-    scatter_fig.update_layout(
-        xaxis=dict(range=[-100, 3100], fixedrange=True),   # don’t let user zoom out further than this
-        yaxis=dict(range=[min(predictions['PredictedSalePrice']) - 400, max(predictions['PredictedSalePrice']) + 400
-                         ])
-    )
-
-    reactive_chart = mo.ui.plotly(scatter_fig, config={
-            "modeBarButtonsToRemove": ["select2d", "lasso2d"]
-    })
-    return (reactive_chart,)
-
-
-@app.cell
-def _():
-    decision_cache = {}
-    return (decision_cache,)
-
-
-@app.cell
-def _(decision_cache, mo, np, posteriors, target_mean, target_std):
-    def decision(y_low, y_high, predicted_mean, asking_price, house_ID, tolerance=0.025, margin_threshold=4000): # This function is for a single house (i.e. one row of data)
-        key = (house_ID, asking_price)
-        if key in decision_cache:
-            # Use the cached interval & decision
-            y_low, y_high, coverage = decision_cache[key]
-
+        if p_worth_more > 0.55:
+            return mo.callout(mo.md(f"<h3 style='text-align: left;'>✅ Buy. The model estimates a {pct}% probability this house is worth more than the asking price. Expected gain: ${expected_margin:,.0f}.</h3>"), kind="success")
+        elif p_worth_more >= 0.45:
+            return mo.callout(mo.md(f"<h3 style='text-align: left;'>🤔 Fair Purchase. The model estimates a {pct}% probability this house is worth more than the asking price. Expected margin: ${expected_margin:,.0f}.</h3>"), kind="warn")
         else:
-            coverage = round(np.random.uniform(0.85, 0.95), 2)
-            lower_q = (1 - coverage) / 2
-            upper_q = 1 - lower_q
-            posterior = posteriors[:, house_ID]
-            posterior = posterior * target_std + target_mean
-            posterior = np.exp(posterior)
-            y_low = np.quantile(posterior, lower_q)
-            y_high = np.quantile(posterior, upper_q)
-
-
-        interval_width = y_high - y_low
-        relative_width = ((interval_width / predicted_mean) * 100) // 2
-        expected_margin = round(predicted_mean - asking_price, 2)    
-        buffer = 35000
-        decision_cache[key] = (y_low, y_high, coverage)
-
-        # tolerance is % wiggle room you’re comfortable with
-        if y_high < (asking_price * (1 - tolerance)) - buffer:
-            return mo.callout(mo.md("<h3 style='text-align: left;'>🛑 Don't Buy (overpriced). The asking price is a lot higher than what this house would realistically sell for.</h3>"), kind="danger")
-        elif y_low > (asking_price * (1 + tolerance)) + buffer:
-            return mo.callout(mo.md("<h3 style='text-align: left;'>✅ Buy (undervalued). The asking price is below some of the lowest prices that this house would realistically sell for.</h3>"), kind="success")
-        else:
-            if expected_margin > margin_threshold:
-                return mo.callout(mo.md(f"<h3 style='text-align: left;'>✅ Buy. Expected gain if you buy: ${expected_margin}. I'm {coverage * 100}% confident that this is the case.</h3>"), kind="success")
-            elif expected_margin < -margin_threshold:
-                return mo.callout(mo.md(f"<h3 style='text-align: left;'>🛑 Don't Buy. Expected loss if you buy: ${expected_margin}. I'm {coverage * 100}% confident that purchasing this house is not worth it.</h3>"), kind="danger")
-            else:
-                return mo.callout(mo.md(f"<h3 style='text-align: left;'>🤔 The asking price falls within a reasonable range. Expected margin: ${expected_margin}. There is a {coverage * 100}% probability that this represents a fair purchase."), kind="warn")
-    return (decision,)
+            return mo.callout(mo.md(f"<h3 style='text-align: left;'>🛑 Don't Buy. The model estimates only a {pct}% probability this house is worth more than the asking price. Expected loss: ${abs(expected_margin):,.0f}.</h3>"), kind="danger")
+    return decision, predict_posterior
 
 
 @app.cell
-def _(asking_price, decision, mo, reactive_chart, set_decision_state):
-    lower_bound_plot = reactive_chart.value[0]['LowerBoundCI'] if reactive_chart.value else None
-    upper_bound_plot = reactive_chart.value[0]['UpperBoundCI'] if reactive_chart.value else None
-    predicted_sale_price_plot = reactive_chart.value[0]['PredictedSalePrice'] if reactive_chart.value else None
-    House_ID = reactive_chart.value[0]['HouseID'] if reactive_chart.value else None
+def _(feat_means, mo):
+    _m = feat_means.astype(int)
+    input_overall_qual = mo.ui.slider(start=1, stop=10, step=1, value=int(round(feat_means[0])), label="Overall Quality (1–10)")
+    input_gr_liv_area = mo.ui.number(start=0, stop=10000, value=int(feat_means[1]), label="Ground Living Area (sq ft)")
+    input_first_flr_sf = mo.ui.number(start=0, stop=10000, value=int(feat_means[2]), label="1st Floor Area (sq ft)")
+    input_year_built = mo.ui.slider(start=1870, stop=2010, step=1, value=int(round(feat_means[3])), label="Year Built")
+    input_year_remod = mo.ui.slider(start=1950, stop=2010, step=1, value=int(round(feat_means[4])), label="Year Remodeled")
+    input_lot_area = mo.ui.number(start=0, stop=500000, value=int(feat_means[5]), label="Lot Area (sq ft)")
+    input_overall_cond = mo.ui.slider(start=1, stop=10, step=1, value=int(round(feat_means[6])), label="Overall Condition (1–10)")
+    input_garage_area = mo.ui.number(start=0, stop=2000, value=int(feat_means[7]), label="Garage Area (sq ft)")
+    input_total_bsmt_sf = mo.ui.number(start=0, stop=6000, value=int(feat_means[8]), label="Total Basement Area (sq ft)")
+    input_full_bath = mo.ui.slider(start=0, stop=5, step=1, value=int(round(feat_means[9])), label="Full Bathrooms")
+    asking_price = mo.ui.number(start=0, stop=10000000, value=150000, label="Asking Price ($)")
+    return (
+        asking_price,
+        input_first_flr_sf,
+        input_full_bath,
+        input_garage_area,
+        input_gr_liv_area,
+        input_lot_area,
+        input_overall_cond,
+        input_overall_qual,
+        input_total_bsmt_sf,
+        input_year_built,
+        input_year_remod,
+    )
 
+
+@app.cell
+def _(
+    asking_price,
+    decision,
+    input_first_flr_sf,
+    input_full_bath,
+    input_garage_area,
+    input_gr_liv_area,
+    input_lot_area,
+    input_overall_cond,
+    input_overall_qual,
+    input_total_bsmt_sf,
+    input_year_built,
+    input_year_remod,
+    mo,
+    set_decision_state,
+):
     def calling_decision(*_):
-        if lower_bound_plot and upper_bound_plot and predicted_sale_price_plot and asking_price.value and House_ID:
-            set_decision_state(decision(lower_bound_plot, upper_bound_plot, predicted_sale_price_plot, asking_price.value, House_ID))
+        feature_values = [
+            input_overall_qual.value,
+            input_gr_liv_area.value,
+            input_first_flr_sf.value,
+            input_year_built.value,
+            input_year_remod.value,
+            input_lot_area.value,
+            input_overall_cond.value,
+            input_garage_area.value,
+            input_total_bsmt_sf.value,
+            input_full_bath.value,
+        ]
+        if asking_price.value and asking_price.value > 0:
+            set_decision_state(decision(feature_values, asking_price.value))
         else:
-            set_decision_state(mo.callout(mo.md("""<h3 style='text-align: left;'>⚠️ One or more missing inputs!</h3>"""), kind='warn'))
+            set_decision_state(mo.callout(mo.md("<h3 style='text-align: left;'>⚠️ Please enter an asking price.</h3>"), kind='warn'))
     return (calling_decision,)
-
-
-@app.cell
-def _(mo):
-    asking_price = mo.ui.number(start=0, stop=10000000, label="Input an Asking Price for House")
-    return (asking_price,)
 
 
 @app.cell
@@ -240,7 +244,7 @@ def _(calling_decision, mo):
 
 @app.cell
 def _(mo):
-    get_decision_state, set_decision_state = mo.state(mo.callout(mo.md("<h3 style='text-align: left;'>Waiting for a decision to be made...</h3>"), kind='info'))
+    get_decision_state, set_decision_state = mo.state(mo.callout(mo.md("<h3 style='text-align: left;'>Fill in the house details above and click Make Decision.</h3>"), kind='info'))
     return get_decision_state, set_decision_state
 
 
@@ -439,23 +443,52 @@ def _(add_house, delete_house, mo, update_house):
 @app.cell
 def _(add_button, card, crud_table, delete_button, mo, update_button):
     def crud_page():
-        return mo.vstack([mo.md("""<h1 style='margin-bottom: 30px; text-align: left; color: green;'>Interact with Database</h1>"""), crud_table, mo.vstack([card, mo.hstack([update_button, delete_button, add_button], justify='center', gap=4)], gap=2)
-                         ]
-                         , gap=1)
+        return mo.vstack([
+            mo.md("<h1 style='margin-bottom: 10px; text-align: left; color: green;'>Housing Database</h1>"),
+            mo.md("Historical house records from the Ames, Iowa dataset used to train the model."),
+            crud_table,
+            mo.vstack([card, mo.hstack([update_button, delete_button, add_button], justify='center', gap=4)], gap=2),
+        ], gap=1)
     return (crud_page,)
 
 
 @app.cell
-def _(asking_price, decision_button, get_decision_state, mo, reactive_chart):
+def _(
+    asking_price,
+    decision_button,
+    get_decision_state,
+    input_first_flr_sf,
+    input_full_bath,
+    input_garage_area,
+    input_gr_liv_area,
+    input_lot_area,
+    input_overall_cond,
+    input_overall_qual,
+    input_total_bsmt_sf,
+    input_year_built,
+    input_year_remod,
+    mo,
+):
     def home_page():
-        return mo.vstack(
-            [mo.vstack([mo.md("""<h1 style='margin-bottom: 30px; text-align: left; color: green;'>Main Page</h1>"""), reactive_chart,
-                       mo.callout(mo.md(f"<h3 style='text-align: left;'>House ID {reactive_chart.value[0]['HouseID']} Selected</h3>") if reactive_chart.value else mo.md(f"<h3 style='text-align: left;'>Please Select a House</h3>")
-                                 )], 
-         gap=0.0001),  
-            mo.vstack([asking_price, decision_button, get_decision_state()], gap=2.5), 
-                        ], 
-            gap=1.5)
+        form = mo.callout(
+            mo.vstack([
+                asking_price,
+                mo.md("---"),
+                mo.md("**House Attributes** — leave unknown fields at their default (training average)"),
+                mo.hstack([
+                    mo.vstack([input_overall_qual, input_gr_liv_area, input_first_flr_sf, input_year_built, input_year_remod], gap=3),
+                    mo.vstack([input_overall_cond, input_full_bath, input_lot_area, input_garage_area, input_total_bsmt_sf], gap=3),
+                ], gap=6),
+            ], gap=2),
+            kind='info'
+        )
+        return mo.vstack([
+            mo.md("<h1 style='margin-bottom: 10px; text-align: left; color: green;'>Main Page</h1>"),
+            mo.md("⚠️ *This model was trained on Ames, Iowa housing data. Predictions are only reliable right now for houses with similar characteristics and price ranges (~$100k–$400k).*"),
+            form,
+            decision_button,
+            get_decision_state(),
+        ], gap=2)
     return (home_page,)
 
 
@@ -463,9 +496,9 @@ def _(asking_price, decision_button, get_decision_state, mo, reactive_chart):
 def _(mo):
     def about_page():
         return mo.vstack([mo.md("""<h1 style='margin-bottom: 30px; text-align: left; color: green;'>About Page</h1>"""), 
-                          mo.hstack([mo.vstack([mo.md("This app is designed to assist users in making house-purchasing decisions. Users can browse available house data from the database, input an asking price, and receive purchase advice generated by the app. A key feature is that the advice reflects the model’s degree of confidence, explicitly quantifying uncertainty. This is achieved through training a **Bayesian Regression model**, which generates posterior distributions that inform the decision-making process."),
-                          mo.md("The process began with raw data from Kaggle’s Ames Housing Dataset (CSV). This data was cleaned and transformed using **SQLMesh** and the raw CSV data was ingested and incrementally transformed through a pipeline of SQLMesh models, where each model built on the outputs of the previous stage, resulting in the final cleaned dataset. Data cleaning and transformations include handling outliers, taking the logarithm of features, and standardization. The final cleaned dataset was queried into a Pandas DataFrame and used to train the Bayesian regression model via **stochastic variational inference (SVI)**. This was implemented using **Pyro**, a probabilistic programming language, which allowed us to define the model’s joint probability density (the product of priors and likelihood) and specify a guide—Pyro’s term for the variational distribution that approximates the true posterior. Approximating the posterior is necessary because computing the evidence in Bayes’ rule is typically intractable. To perform the approximation, SVI optimizes an objective function known as the **Evidence Lower Bound (ELBO)**. The algorithm takes stochastic gradient steps to maximize the ELBO, which is mathematically equivalent to minimizing the **Kullback–Leibler (KL) divergence (a measure of difference in information between two distributions or relative entropy)** between the variational distribution and the true posterior. Intuitively, a smaller KL divergence means the approximation is closer to the true posterior, with a value of zero indicating an exact match. After the model’s posterior distributions were computed, credible intervals were derived and used in the decision logic. Finally, the user interface was built with **marimo (reactive Python notebook)**, and CRUD functionality was implemented with **SQLModel (Object-relational mapping)**."),
-        mo.md('Most of the model’s credible intervals indicate roughly 46% uncertainty between the lower and upper bounds. This corresponds to approximately ±23% uncertainty on either side of the mean prediction. In other words, for a typical prediction, the model is 90% confident (because 90% credible interval) that the true sale price lies within ±23% of its predicted value.')                            
+                          mo.hstack([mo.vstack([mo.md("This app is designed to assist users in making house-purchasing decisions. Users can browse available house data from the database, input an asking price, and receive purchase advice generated by the app. A key feature is that the advice reflects the model's degree of confidence, explicitly quantifying uncertainty. This is achieved through training a **Bayesian Regression model**, which generates posterior distributions that inform the decision-making process."),
+                          mo.md("The process began with raw data from Kaggle's Ames Housing Dataset (CSV). This data was cleaned and transformed using **SQLMesh** and the raw CSV data was ingested and incrementally transformed through a pipeline of SQLMesh models, where each model built on the outputs of the previous stage, resulting in the final cleaned dataset. Data cleaning and transformations include handling outliers, taking the logarithm of features, and standardization. The final cleaned dataset was queried into a Pandas DataFrame and used to train the Bayesian regression model via **stochastic variational inference (SVI)**. This was implemented using **Pyro**, a probabilistic programming language, which allowed us to define the model's joint probability density (the product of priors and likelihood) and specify a guide—Pyro's term for the variational distribution that approximates the true posterior. Approximating the posterior is necessary because computing the evidence in Bayes' rule is typically intractable. To perform the approximation, SVI optimizes an objective function known as the **Evidence Lower Bound (ELBO)**. The algorithm takes stochastic gradient steps to maximize the ELBO, which is mathematically equivalent to minimizing the **Kullback–Leibler (KL) divergence (a measure of difference in information between two distributions or relative entropy)** between the variational distribution and the true posterior. Intuitively, a smaller KL divergence means the approximation is closer to the true posterior, with a value of zero indicating an exact match. After the model's posterior distributions were computed, credible intervals were derived and used in the decision logic. Finally, the user interface was built with **marimo (reactive Python notebook)**, and CRUD functionality was implemented with **SQLModel (Object-relational mapping)**."),
+        mo.md("Most of the model's credible intervals indicate roughly 46% uncertainty between the lower and upper bounds. This corresponds to approximately ±23% uncertainty on either side of the mean prediction. In other words, for a typical prediction, the model is 90% confident (because 90% credible interval) that the true sale price lies within ±23% of its predicted value.")
         ]),
               mo.vstack([mo.md("For the decision-making component of this app, the model uses the width of the credible intervals. Specifically, if the asking price is below the lower bound of the interval, the house is considered a bargain, since the lowest price predicted by the model (the lower bound) exceeds the asking price. Conversely, if the asking price is above the upper bound, the house is considered overpriced. If the asking price falls within the interval, the difference between the mean of the predicted sale prices and the asking price determines potential gain or loss: positive values indicate a potential gain, while negative values indicate a potential loss.")
                          ,mo.md("In future versions, potential improvements include adding more ways for users to interact with the data beyond the scatterplot and eliminating the shuttering that occurs each time an action is performed. Additionally, the app could be enhanced by integrating the CRUD functionality with the house decision logic so that any CRUD actions are immediately reflected in the decision-making output.")])                       
@@ -497,7 +530,7 @@ def _(mo):
         mo.nav_menu(
             {
                 "#/": f"{mo.icon('lucide:home', color='purple')} Home",
-                "#/CRUD": f"{mo.icon('icon-park:data-all')} Access CRUD Functionality",
+                "#/CRUD": f"{mo.icon('icon-park:data-all')} Housing Database",
                 "#/about": f"{mo.icon('unjs:unctx')} About Me",
             },
             orientation="vertical",
