@@ -211,3 +211,6 @@ sqlmodel/houses_crud.db
 
 # Claude Code local config
 .claude/
+
+# HF deploy script (contains token)
+deploy_hf.py
